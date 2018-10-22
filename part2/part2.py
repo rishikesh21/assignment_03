@@ -3,11 +3,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from keras.models import Sequential
-from keras.layers import Dense, LSTM, SimpleRNN
+from keras.layers import Dense, LSTM, SimpleRNN,Activation
+from keras import optimizers
+from itertools import islice
+from keras import backend as K
+from itertools import islice
+from keras import optimizers
+from sklearn.metrics import mean_squared_error
+from math import sqrt
+
 
 # Create model
-def create_rnn_model(stateful):
+def create_rnn_model(stateful,batch_size,n_history,n_cols):
 	##### YOUR MODEL GOES HERE #####
+	model = Sequential()
+	model.add(SimpleRNN(20, batch_shape=(batch_size, n_history, n_cols), return_sequences=False, stateful=stateful))
+	model.add(Activation('relu'))
+	adam = optimizers.Adam(lr=0.001)
+	model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
+
 	return model
 
 # split train/test data
@@ -32,6 +46,30 @@ def split_data(x, y, ratio=0.8):
 
 	return (x_train, y_train), (x_test, y_test)
 
+# Returns a sliding window (of width n) over data from the iterable
+def window(seq, n=2):
+    it = iter(seq)
+    result = list(islice(it, n))
+    if len(result) == n:
+        yield result
+    for elem in it:
+        result = result[1:] + [elem]
+        yield result
+
+def returnMovinWindowArray(inputData,targetData,windowsize):
+        X=[]
+        Y=[]
+        X = list(window(inputData, n=windowsize))
+        Y = np.array(targetData[(windowsize - 1):len(targetData)], dtype=float)
+        return pd.DataFrame(np.array(np.flip(X, axis=1), dtype=float)),pd.DataFrame(Y)
+
+def root_mean_squared_error(y_true, y_pred):
+    return K.sqrt(K.mean(K.square(y_pred - y_true), axis=-1))
+
+
+def root_mean_squared_error_layer(y_true, y_pred):
+    rms = sqrt(mean_squared_error(np.array(y_true,dtype=np.float), np.array(y_pred,dtype=np.float)))
+    return rms
 # training parameters passed to "model.fit(...)"
 batch_size = 1
 epochs = 10
@@ -68,7 +106,8 @@ for num_input in range(min_length,max_length+1):
 	# when length > 1, arrange input sequences
 	if length > 1:
 		##### ARRANGE YOUR DATA SEQUENCES #####
-
+		print(length)
+		data_input, expected_output = returnMovinWindowArray(noisy_data, smooth_data, length)
 
 	print('data_input length:{}'.format(len(data_input.index)) )
 
@@ -92,7 +131,7 @@ for num_input in range(min_length,max_length+1):
 	
 	# Create the stateful model
 	print('Creating Stateful Vanilla RNN Model...')
-	model_rnn_stateful = create_rnn_model(stateful=True)
+	model_rnn_stateful = create_rnn_model(stateful=True,num_input,1,1)
 
 	# Train the model
 	print('Training')
@@ -124,7 +163,7 @@ for num_input in range(min_length,max_length+1):
 	# predicted_rnn_stateful = model_rnn_stateful.predict()
 
 	##### CALCULATE RMSE #####
-	# rnn_stateful_rmse = 
+	rnn_stateful_rmse =0
 	rnn_stateful_rmse_list.append(rnn_stateful_rmse)
 
 	# print('tsteps:{}'.format(tsteps))
@@ -159,7 +198,7 @@ for num_input in range(min_length,max_length+1):
 	# predicted_rnn_stateless = model_rnn_stateless.predict()
 
 	##### CALCULATE RMSE #####
-	# rnn_stateless_rmse = 
+	rnn_stateless_rmse = 0
 	rnn_stateless_rmse_list.append(rnn_stateless_rmse)
 
 	# print('tsteps:{}'.format(tsteps))
