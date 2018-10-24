@@ -3,48 +3,26 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from keras.models import Sequential
-from keras.layers import Dense, LSTM, SimpleRNN,Activation
-from keras import optimizers
-from itertools import islice
+from keras.layers import Dense, LSTM, SimpleRNN, Activation
 from keras import backend as K
 from itertools import islice
 from keras import optimizers
 from sklearn.metrics import mean_squared_error
 from math import sqrt
+from keras import optimizers
+from numpy import zeros, newaxis
 
 
 # Create model
-def create_rnn_model(stateful,batch_size,n_history,n_cols):
-	##### YOUR MODEL GOES HERE #####
-	model = Sequential()
-	model.add(SimpleRNN(20, batch_shape=(batch_size, n_history, n_cols), return_sequences=False, stateful=stateful))
-	model.add(Activation('relu'))
-	adam = optimizers.Adam(lr=0.001)
-	model.compile(loss='categorical_crossentropy', optimizer=adam, metrics=['accuracy'])
+def create_rnn_model(stateful, length):
+    ##### YOUR MODEL GOES HERE #####
+    model = Sequential()
+    model.add(SimpleRNN(20, return_sequences=False, stateful=stateful, batch_input_shape=(1, length, 1)))
+    adam = optimizers.Adam(lr=0.001)
+    model.add(Dense(1))
+    model.compile(loss='mean_squared_error', optimizer=adam, metrics=[root_mean_squared_error])
+    return model
 
-	return model
-
-# split train/test data
-def split_data(x, y, ratio=0.8):
-	to_train = int(len(x.index) * ratio)
-	# tweak to match with batch_size
-	to_train -= to_train % batch_size
-
-	x_train = x[:to_train]
-	y_train = y[:to_train]
-	x_test = x[to_train:]
-	y_test = y[to_train:]
-
-	# tweak to match with batch_size
-	to_drop = x.shape[0] % batch_size
-	if to_drop > 0:
-		x_test = x_test[:-1 * to_drop]
-		y_test = y_test[:-1 * to_drop]
-
-	# some reshaping
-	##### RESHAPE YOUR DATA BASED ON YOUR MODEL #####
-
-	return (x_train, y_train), (x_test, y_test)
 
 # Returns a sliding window (of width n) over data from the iterable
 def window(seq, n=2):
@@ -56,20 +34,93 @@ def window(seq, n=2):
         result = result[1:] + [elem]
         yield result
 
-def returnMovinWindowArray(inputData,targetData,windowsize):
-        X=[]
-        Y=[]
-        X = list(window(inputData, n=windowsize))
-        Y = np.array(targetData[(windowsize - 1):len(targetData)], dtype=float)
-        return pd.DataFrame(np.array(np.flip(X, axis=1), dtype=float)),pd.DataFrame(Y)
+
+def returnMovinWindowArray(inputData, targetData, windowsize):
+    X = []
+    Y = []
+    X = list(window(inputData, n=windowsize))
+    Y = np.array(targetData[(windowsize - 1):len(targetData)], dtype=float)
+    return pd.DataFrame(np.array(np.flip(X, axis=1), dtype=float)), pd.DataFrame(Y)
+
+
+# plot the model history
+def plot_model_loss(model_history, length, mode):
+    plt.plot(model_history.history['loss'])
+    plt.title('model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.savefig('../plots/' + mode + '/' + mode + '_loss_length_' + str(length) + '.png')
+
+
+# plot the model history
+def plot_model_rmse(model_history):
+    plt.plot(model_history.history['root_mean_squared_error'])
+    plt.title('model root_mean_squared_error')
+    plt.ylabel('rmse')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    plt.show()
+    plt.savefig('/Users/mac/Downloads/part.png')
+
+    plt.show()
+
+
+# split train/test data
+def split_data(x, y, ratio=0.8):
+    to_train = int(len(x.index) * ratio)
+    # tweak to match with batch_size
+    to_train -= to_train % batch_size
+
+    x_train = x[:to_train]
+    y_train = y[:to_train]
+    x_test = x[to_train:]
+    y_test = y[to_train:]
+
+    # tweak to match with batch_size
+    to_drop = x.shape[0] % batch_size
+    if to_drop > 0:
+        x_test = x_test[:-1 * to_drop]
+        y_test = y_test[:-1 * to_drop]
+
+    # some reshaping
+    ##### RESHAPE YOUR DATA BASED ON YOUR MODEL #####
+    x_train = x_train.values[:, :, newaxis]
+    # y_train=y_train.values.reshape((y_train.shape[0]))
+    x_test = x_test.values[:, :, newaxis]
+    # y_test=y_test.values.reshape((y_test.shape[0],))
+
+    return (x_train, y_train), (x_test, y_test)
+
+
+# Returns a sliding window (of width n) over data from the iterable
+def window(seq, n=2):
+    it = iter(seq)
+    result = list(islice(it, n))
+    if len(result) == n:
+        yield result
+    for elem in it:
+        result = result[1:] + [elem]
+        yield result
+
+
+def returnMovinWindowArray(inputData, targetData, windowsize):
+    X = []
+    Y = []
+    X = list(window(inputData, n=windowsize))
+    Y = np.array(targetData[(windowsize - 1):len(targetData)], dtype=float)
+    return pd.DataFrame(np.array(np.flip(X, axis=1), dtype=float)), pd.DataFrame(Y)
+
 
 def root_mean_squared_error(y_true, y_pred):
     return K.sqrt(K.mean(K.square(y_pred - y_true), axis=-1))
 
 
 def root_mean_squared_error_layer(y_true, y_pred):
-    rms = sqrt(mean_squared_error(np.array(y_true,dtype=np.float), np.array(y_pred,dtype=np.float)))
+    rms = sqrt(mean_squared_error(np.array(y_true, dtype=np.float), np.array(y_pred, dtype=np.float)))
     return rms
+
+
 # training parameters passed to "model.fit(...)"
 batch_size = 1
 epochs = 10
@@ -87,136 +138,141 @@ print('smooth_data shape:{}'.format(smooth_data.shape))
 print('noisy_data first 5 data points:{}'.format(noisy_data[:5]))
 print('smooth_data first 5 data points:{}'.format(smooth_data[:5]))
 
-
 # List to keep track of root mean square error for different length input sequences
-rnn_stateful_rmse_list=list()
-rnn_stateless_rmse_list=list()
+rnn_stateful_rmse_list = list()
+rnn_stateless_rmse_list = list()
 
-for num_input in range(min_length,max_length+1):
-	length = num_input
+for num_input in range(min_length, max_length + 1):
+    length = num_input
 
-	print("*" * 33)
-	print("INPUT DIMENSION:{}".format(length))
-	print("*" * 33)
+    print("*" * 33)
+    print("INPUT DIMENSION:{}".format(length))
+    print("*" * 33)
 
-	# convert numpy arrays to pandas dataframe
-	data_input = pd.DataFrame(noisy_data)
-	expected_output = pd.DataFrame(smooth_data)
+    # convert numpy arrays to pandas dataframe
+    data_input = pd.DataFrame(noisy_data)
+    expected_output = pd.DataFrame(smooth_data)
 
-	# when length > 1, arrange input sequences
-	if length > 1:
-		##### ARRANGE YOUR DATA SEQUENCES #####
-		print(length)
-		data_input, expected_output = returnMovinWindowArray(noisy_data, smooth_data, length)
+    # when length > 1, arrange input sequences
+    if length > 1:
+        ##### ARRANGE YOUR DATA SEQUENCES #####
+        print(length)
+        data_input, expected_output = returnMovinWindowArray(noisy_data, smooth_data, length)
 
-	print('data_input length:{}'.format(len(data_input.index)) )
+    print('data_input length:{}'.format(len(data_input.index)))
 
-	# Split training and test data: use first 80% of data points as training and remaining as test
-	(x_train, y_train), (x_test, y_test) = split_data(data_input, expected_output)
-	print('x_train.shape: ', x_train.shape)
-	print('y_train.shape: ', y_train.shape)
-	print('x_test.shape: ', x_test.shape)
-	print('y_test.shape: ', y_test.shape)
+    # Split training and test data: use first 80% of data points as training and remaining as test
+    (x_train, y_train), (x_test, y_test) = split_data(data_input, expected_output)
+    print('x_train.shape: ', x_train.shape)
+    print('y_train.shape: ', y_train.shape)
+    print('x_test.shape: ', x_test.shape)
+    print('y_test.shape: ', y_test.shape)
 
-	print('Input shape:', data_input.shape)
-	print('Output shape:', expected_output.shape)
-	print('Input head: ')
-	print(data_input.head())
-	print('Output head: ')
-	print(expected_output.head())
-	print('Input tail: ')
-	print(data_input.tail())
-	print('Output tail: ')
-	print(expected_output.tail())
-	
-	# Create the stateful model
-	print('Creating Stateful Vanilla RNN Model...')
-	model_rnn_stateful = create_rnn_model(stateful=True,num_input,1,1)
+    print('Input shape:', data_input.shape)
+    print('Output shape:', expected_output.shape)
+    print('Input head: ')
+    print(data_input.head())
+    print('Output head: ')
+    print(expected_output.head())
+    print('Input tail: ')
+    print(data_input.tail())
+    print('Output tail: ')
+    print(expected_output.tail())
 
-	# Train the model
-	print('Training')
-	for i in range(epochs):
-		print('Epoch', i + 1, '/', epochs)
-		# Note that the last state for sample i in a batch will
-		# be used as initial state for sample i in the next batch.
-		
-		##### TRAIN YOUR MODEL #####
-		# model_rnn_stateful.fit()
+    # Create the stateful model
+    print('Creating Stateful RNN Model...')
+    model_rnn_stateful = create_rnn_model(True, length)
 
-		# reset states at the end of each epoch
-		model_rnn_stateful.reset_states()
+    # Train the model
+    print('Training')
+    for i in range(epochs):
+        print('Epoch', i + 1, '/', epochs)
+        # Note that the last state for sample i in a batch will
+        # be used as initial state for sample i in the next batch.
 
+        ##### TRAIN YOUR MODEL #####
+        model_info_rnn_stateful = model_rnn_stateful.fit(x=x_train, y=y_train, validation_data=(x_test, y_test),
+                                                           batch_size=1, epochs=10, verbose=1)
 
-	# Plot and save loss curves of training and test set vs iteration in the same graph
-	##### PLOT AND SAVE LOSS CURVES #####
+        # reset states at the end of each epoch
+        model_rnn_stateful.reset_states()
 
-	# Save your model weights with following convention:
-	# For example length 1 input sequences model filename
-	# rnn_stateful_model_weights_length_1.h5
-	##### SAVE MODEL WEIGHTS #####
-	# filename = ''
-	# model_rnn_stateful.save_weights()
+    # Plot and save loss curves of training and test set vs iteration in the same graph
+    ##### PLOT AND SAVE LOSS CURVES #####
+    plot_model_loss(model_info_rnn_stateful, length, "rnn_stateful")
 
-	# Predict 
-	print('Predicting')
-	##### PREDICT #####
-	# predicted_rnn_stateful = model_rnn_stateful.predict()
+    # Save your model weights with following convention:
+    # For example length 1 input sequences model filename
+    # rnn_stateful_model_weights_length_1.h5
+    ##### SAVE MODEL WEIGHTS #####
+    filename_rnn_stateful_weight = 'rnn_stateful__model_weights_length_' + str(num_input) + '.h5'
+    model_rnn_stateful.save_weights(filename_rnn_stateful_weight)
 
-	##### CALCULATE RMSE #####
-	rnn_stateful_rmse =0
-	rnn_stateful_rmse_list.append(rnn_stateful_rmse)
+    # Predict 
+    print('Predicting')
+    ##### PREDICT #####
+    predicted_rnn_stateful = model_rnn_stateful.predict(x_test, batch_size=1)
 
-	# print('tsteps:{}'.format(tsteps))
-	print('length:{}'.format(length))
-	print('Stateful Vanilla RNN RMSE:{}'.format( rnn_stateful_rmse ))
+    ##### CALCULATE RMSE #####
+    rnn_stateful_rmse = root_mean_squared_error_layer(y_test, predicted_rnn_stateful)
+    rnn_stateful_rmse_list.append(rnn_stateful_rmse)
 
+    # print('tsteps:{}'.format(tsteps))
+    print('length:{}'.format(length))
+    print('Stateful RNN RMSE:{}'.format(rnn_stateful_rmse))
 
+    # Create the stateless model
+    print('Creating stateless RNN Model...')
+    model_rnn_stateless = create_rnn_model(False, length)
 
-	# Create the stateless model
-	print('Creating stateless Vanilla RNN Model...')
-	model_rnn_stateless = create_rnn_model(stateful=False)
+    # Train the model
+    print('Training')
+    ##### TRAIN YOUR MODEL #####
+    model_info_rnn_stateless = model_rnn_stateless.fit(x=x_train, y=y_train, validation_data=(x_test, y_test),
+                                                         batch_size=1, epochs=10, verbose=1)
 
-	# Train the model
-	print('Training')
-	##### TRAIN YOUR MODEL #####
-	# model_rnn_stateless.fit()
+    # Plot and save loss curves of training and test set vs iteration in the same graph
+    ##### PLOT AND SAVE LOSS CURVES #####
+    plot_model_loss(model_info_rnn_stateless, length, "rnn_stateless")
 
+    # Save your model weights with following convention:
+    # For example length 1 input sequences model filename
+    # rnn_stateless_model_weights_length_1.h5
+    ##### SAVE MODEL WEIGHTS #####
+    filename_rnn_stateless_weight = 'rnn_stateless_model_weights_length_' + str(num_input) + '.h5'
+    model_rnn_stateless.save_weights(filename_rnn_stateless_weight)
 
-	# Plot and save loss curves of training and test set vs iteration in the same graph
-	##### PLOT AND SAVE LOSS CURVES #####
+    # Predict 
+    print('Predicting')
+    ##### PREDICT #####
+    predicted_rnn_stateless = model_rnn_stateless.predict(x_test, batch_size=1)
 
-	# Save your model weights with following convention:
-	# For example length 1 input sequences model filename
-	# rnn_stateless_model_weights_length_1.h5
-	##### SAVE MODEL WEIGHTS #####
-	# filename = ''
-	# model_rnn_stateless.save_weights()
+    ##### CALCULATE RMSE #####
+    rnn_stateless_rmse = root_mean_squared_error_layer(y_test, predicted_rnn_stateless)
+    rnn_stateless_rmse_list.append(rnn_stateless_rmse)
 
-	# Predict 
-	print('Predicting')
-	##### PREDICT #####
-	# predicted_rnn_stateless = model_rnn_stateless.predict()
-
-	##### CALCULATE RMSE #####
-	rnn_stateless_rmse = 0
-	rnn_stateless_rmse_list.append(rnn_stateless_rmse)
-
-	# print('tsteps:{}'.format(tsteps))
-	print('length:{}'.format(length))
-	print('Stateless Vanilla RNN RMSE:{}'.format( rnn_stateless_rmse ))
+# print('tsteps:{}'.format(tsteps))
+# print('length:{}'.format(length))
+# print('Stateless LSTM RMSE:{}'.format( rnn_stateless_rmse ))
 
 
 # save your rmse values for different length input sequence models - stateful rnn:
-filename = 'rnn_stateful_model_rmse_values.txt'
-np.savetxt(filename, np.array(rnn_stateful_rmse_list), fmt='%.6f', delimiter='\t')
+filename_rnn_stateful_rmse = 'rnn_stateful_model_rmse_values.txt'
+np.savetxt(filename_rnn_stateful_rmse, np.array(rnn_stateful_rmse_list), fmt='%.6f', delimiter='\t')
 
 # save your rmse values for different length input sequence models - stateless rnn:
-filename = 'rnn_stateless_model_rmse_values.txt'
-np.savetxt(filename, np.array(rnn_stateless_rmse_list), fmt='%.6f', delimiter='\t')
+filename_rnn_stateless_rmse = 'rnn_stateless_model_rmse_values.txt'
+np.savetxt(filename_rnn_stateless_rmse, np.array(rnn_stateless_rmse_list), fmt='%.6f', delimiter='\t')
 
 print("#" * 33)
 print('Plotting Results')
 print("#" * 33)
+
+# plt.figure()
+# plt.plot(data_input[0][:100], '.')
+# plt.plot(expected_output[0][:100], '-')
+# plt.legend(['Input', 'Expected output'])
+# plt.title('Input - First 100 data points')
 
 # Plot and save rmse vs Input Length
 plt.figure()
@@ -228,5 +284,6 @@ plt.ylabel('rmse')
 plt.legend()
 plt.grid()
 plt.show()
+
 
 

@@ -3,23 +3,74 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from keras.models import Sequential
-from keras.layers import Dense, LSTM, SimpleRNN
+from keras.layers import Dense, LSTM, SimpleRNN,Activation
+from keras import backend as K
+from itertools import islice
+from keras import optimizers
+from sklearn.metrics import mean_squared_error
+from math import sqrt
+from numpy import zeros, newaxis
+
+
+
 
 # Create model
-def create_fc_model():
+def create_fc_model(inputLayerSize):
 	##### YOUR MODEL GOES HERE #####
+	model = Sequential()
+	model.add(Dense(20, input_dim=inputLayerSize, kernel_initializer='uniform', activation='relu'))
+	model.add(Dense(1, kernel_initializer='uniform'))
+	model.compile(loss='mean_squared_error', optimizer='adam', metrics=[root_mean_squared_error])
 	return model
 
-def create_rnn_model(stateful):
+
+
+def create_rnn_model(stateful,length):
 	##### YOUR MODEL GOES HERE #####
+	model = Sequential()
+	model.add(SimpleRNN(20, return_sequences=False, stateful=stateful, batch_input_shape=(1, length, 1)))
+	adam = optimizers.Adam(lr=0.001)
+	model.add(Dense(1))
+	model.compile(loss='mean_absolute_error', optimizer=adam, metrics=[root_mean_squared_error])
 	return model
 
-def create_lstm_model(stateful):
+
+def create_lstm_model(stateful,length):
 	##### YOUR MODEL GOES HERE #####
+	model = Sequential()
+	model.add(LSTM(20, return_sequences=False, stateful=stateful, batch_input_shape=(1, length, 1)))
+	adam = optimizers.Adam(lr=0.001)
+	model.add(Dense(1))
+	model.compile(loss='mean_squared_error', optimizer=adam, metrics=[root_mean_squared_error])
 	return model
+
+
+# Returns a sliding window (of width n) over data from the iterable
+def window(seq, n=2):
+    it = iter(seq)
+    result = list(islice(it, n))
+    if len(result) == n:
+        yield result
+    for elem in it:
+        result = result[1:] + [elem]
+        yield result
+
+def returnMovinWindowArray(inputData,targetData,windowsize):
+        X=[]
+        Y=[]
+        X = list(window(inputData, n=windowsize))
+        Y = np.array(targetData[(windowsize - 1):len(targetData)], dtype=float)
+        return pd.DataFrame(np.array(np.flip(X, axis=1), dtype=float)),pd.DataFrame(Y)
+
+def root_mean_squared_error(y_true, y_pred):
+    return K.sqrt(K.mean(K.square(y_pred - y_true), axis=-1))
+
+def root_mean_squared_error_layer(y_true, y_pred):
+    rms = sqrt(mean_squared_error(np.array(y_true,dtype=np.float), np.array(y_pred,dtype=np.float)))
+    return rms
 
 # split train/test data
-def split_data(x, y, ratio=0.8):
+def split_data(x, y, ratio=0.8,flag=0):
 	to_train = int(len(x.index) * ratio)
 	# tweak to match with batch_size
 	to_train -= to_train % batch_size
@@ -37,6 +88,12 @@ def split_data(x, y, ratio=0.8):
 
 	# some reshaping
 	##### RESHAPE YOUR DATA BASED ON YOUR MODEL #####
+	if(flag==1):
+
+	 	x_train = x_train.values[:, :, newaxis]
+	 	# y_train=y_train.values.reshape((y_train.shape[0]))
+	 	x_test = x_test.values[:, :, newaxis]
+	 	# y_test=y_test.values.reshape((y_test.shape[0],))
 
 	return (x_train, y_train), (x_test, y_test)
 
@@ -78,12 +135,14 @@ for num_input in range(min_length,max_length+1):
 	# when length > 1, arrange input sequences
 	if length > 1:
 		##### ARRANGE YOUR DATA SEQUENCES #####
-
+		data_input, expected_output = returnMovinWindowArray(noisy_data, smooth_data, length)
 
 	print('data_input length:{}'.format(len(data_input.index)) )
 
 	# Split training and test data: use first 80% of data points as training and remaining as test
-	(x_train, y_train), (x_test, y_test) = split_data(data_input, expected_output)
+	(x_train, y_train), (x_test, y_test) = split_data(data_input, expected_output,0.8,1)
+	(x_train_fc, y_train_fc), (x_test_fc, y_test_fc) = split_data(data_input, expected_output,0.8,0)
+
 	print('x_train.shape: ', x_train.shape)
 	print('y_train.shape: ', y_train.shape)
 	print('x_test.shape: ', x_test.shape)
@@ -102,65 +161,65 @@ for num_input in range(min_length,max_length+1):
 	
 	# Create the models and load trained weights
 	print('Creating Fully-Connected Model and Loading Trained Weights...')
-	model_fc = create_fc_model()
+	model_fc = create_fc_model(length)
 	##### LOAD MODEL WEIGHTS #####
-	# filename = ''
-	# model_fc.load_weights()
+	filename = '../trained_models/fc_model_weights_length_'+str(length)+'_trained.h5'
+	model_fc.load_weights(filename)
 
 	print('Creating Stateful Vanilla RNN Model and Loading Trained Weights...')
-	model_rnn_stateful = create_rnn_model(stateful=True)
+	model_rnn_stateful = create_rnn_model(True,length)
 	##### LOAD MODEL WEIGHTS #####
-	# filename = ''
-	# model_rnn_stateful.load_weights()
+	filename = '../trained_models/rnn_stateful_model_weights_length_'+str(length)+'_trained.h5'
+	model_rnn_stateful.load_weights(filename)
 
 	print('Creating stateless Vanilla RNN Model and Loading Trained Weights...')
-	model_rnn_stateless = create_rnn_model(stateful=False)
+	model_rnn_stateless = create_rnn_model(False,length)
 	##### LOAD MODEL WEIGHTS #####
-	# filename = ''
-	# model_rnn_stateless.load_weights()
+	filename = '../trained_models/rnn_stateless_model_weights_length_'+str(length)+'_trained.h5'
+	model_rnn_stateless.load_weights(filename)
 
 	print('Creating Stateful LSTM Model and Loading Trained Weights...')
-	model_lstm_stateful = create_lstm_model(stateful=True)
+	model_lstm_stateful = create_lstm_model(True,length)
 	##### LOAD MODEL WEIGHTS #####
-	# filename = ''
-	# model_lstm_stateful.load_weights()
+	filename = '../trained_models/lstm_stateful_model_weights_length_'+str(length)+'_trained.h5'
+	model_lstm_stateful.load_weights(filename)
 
 	print('Creating stateless LSTM Model and Loading Trained Weights...')
-	model_lstm_stateless = create_lstm_model(stateful=False)
+	model_lstm_stateless = create_lstm_model(False,length)
 	##### LOAD MODEL WEIGHTS #####
-	# filename = ''
-	# model_lstm_stateless.load_weights()
+	filename = '../trained_models/lstm_stateless_model_weights_length_'+str(length)+'_trained.h5'
+	model_lstm_stateless.load_weights(filename)
 
 	# Predict 
 	print('Predicting')
 	##### PREDICT #####
-	# predicted_fc = model_fc.predict()
+	predicted_fc = model_fc.predict(x_test_fc)
 	##### CALCULATE RMSE #####
-	# fc_rmse = 
+	fc_rmse = root_mean_squared_error_layer(y_test_fc,predicted_fc)
 	fc_rmse_list.append(fc_rmse)
 
 	##### PREDICT #####
-	# predicted_rnn_stateful = model_rnn_stateful.predict()
+	predicted_rnn_stateful = model_rnn_stateful.predict(x_test,batch_size=1)
 	##### CALCULATE RMSE #####
-	# rnn_stateful_rmse = 
+	rnn_stateful_rmse = root_mean_squared_error_layer(y_test,predicted_rnn_stateful)
 	rnn_stateful_rmse_list.append(rnn_stateful_rmse)
 
 	##### PREDICT #####
-	# predicted_rnn_stateless = model_rnn_stateless.predict()
+	predicted_rnn_stateless = model_rnn_stateless.predict(x_test,batch_size=1)
 	##### CALCULATE RMSE #####
-	# rnn_stateless_rmse = 
+	rnn_stateless_rmse = root_mean_squared_error_layer(y_test,predicted_rnn_stateless)
 	rnn_stateless_rmse_list.append(rnn_stateless_rmse)
 
 	##### PREDICT #####
-	# predicted_lstm_stateful = model_lstm_stateful.predict()
+	predicted_lstm_stateful = model_lstm_stateful.predict(x_test,batch_size=1)
 	##### CALCULATE RMSE #####
-	# lstm_stateful_rmse = 
+	lstm_stateful_rmse = root_mean_squared_error_layer(y_test,predicted_lstm_stateful)
 	lstm_stateful_rmse_list.append(lstm_stateful_rmse)
 
 	##### PREDICT #####
-	# predicted_lstm_stateless = model_lstm_stateless.predict()
+	predicted_lstm_stateless = model_lstm_stateless.predict(x_test,batch_size=1)
 	##### CALCULATE RMSE #####
-	# lstm_stateless_rmse = 
+	lstm_stateless_rmse = root_mean_squared_error_layer(y_test,predicted_lstm_stateless)
 	lstm_stateless_rmse_list.append(lstm_stateless_rmse)
 
 	# print('tsteps:{}'.format(tsteps))
@@ -182,7 +241,8 @@ for num_input in range(min_length,max_length+1):
 # 5th row: lstm stateless
 filename = 'all_models_rmse_values.txt'
 ##### PREPARE RMSE ARRAY THAT WILL BE WRITTEN INTO FILE #####
-# rmse_arr = np.array()
+rmse_arr = np.array([fc_rmse_list,rnn_stateful_rmse_list,rnn_stateless_rmse_list,lstm_stateful_rmse_list,lstm_stateless_rmse_list])
+
 np.savetxt(filename, rmse_arr, fmt='%.6f', delimiter='\t')
 
 print("#" * 33)
@@ -207,6 +267,7 @@ plt.xlabel('length of input sequences')
 plt.ylabel('rmse')
 plt.legend()
 plt.grid()
+plt.savefig('../plots/all_rmse_length_.png')
 plt.show()
 
 

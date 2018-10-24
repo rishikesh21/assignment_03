@@ -9,6 +9,8 @@ from itertools import islice
 from keras import optimizers
 from sklearn.metrics import mean_squared_error
 from math import sqrt
+from numpy import zeros, newaxis
+
 
 
 
@@ -40,15 +42,13 @@ def returnMovinWindowArray(inputData,targetData,windowsize):
         return pd.DataFrame(np.array(np.flip(X, axis=1), dtype=float)),pd.DataFrame(Y)
 
 #plot the model history
-def plot_model_loss(model_history):
+def plot_model_loss(model_history,length):
     plt.plot(model_history.history['loss'])
     plt.title('model loss')
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
     plt.legend(['train', 'test'], loc='upper left')
-    plt.show()
-    plt.savefig('/Users/mac/Downloads/part.png')
-
+    plt.savefig('../plots/fc/fc_loss_length_'+str(length)+'.png')
     plt.show()
 
 
@@ -60,7 +60,6 @@ def plot_model_rmse(model_history):
     plt.xlabel('epoch')
     plt.legend(['train', 'test'], loc='upper left')
     plt.show()
-    plt.savefig('/Users/mac/Downloads/part.png')
 
     plt.show()
 # split train/test data
@@ -82,6 +81,10 @@ def split_data(x, y, ratio=0.8):
 
     # some reshaping
     ##### RESHAPE YOUR DATA BASED ON YOUR MODEL #####
+    # x_train = x_train.values[:, :, newaxis]
+    #y_train=y_train.values.reshape((y_train.shape[0]))
+    # x_test = x_test.values[:, :, newaxis]
+    #y_test=y_test.values.reshape((y_test.shape[0],))
 
     return (x_train, y_train), (x_test, y_test)
 
@@ -170,8 +173,8 @@ for num_input in range(min_length, max_length + 1):
 
     # Plot and save loss curves of training and test set vs iteration in the same graph
     ##### PLOT AND SAVE LOSS CURVES #####
-    plot_model_loss(model_info)
-    plot_model_rmse(model_info)
+    plot_model_loss(model_info,length)
+    #plot_model_rmse(model_info)
 
     # Save your model weights with following convention:
     # For example length 1 input sequences model filename
@@ -216,7 +219,8 @@ plt.xlabel('length of input sequences')
 plt.ylabel('rmse')
 plt.legend()
 plt.grid()
+plt.savefig('../plots/fc/fc_rmse_length_.png')
 plt.show()
-plt.savefig()
+
 
 
